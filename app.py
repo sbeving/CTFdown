@@ -181,7 +181,8 @@ if __name__ == "__main__":
         else:
             if verbosity_level >= 1: # Verbose level 1 for normal output
                 print(f"Challenge {challenge_id} not found or error encountered on {domain}. Stopping.") # More informative error message
-            break # Stop on error for better control
+                challenge_id += 1 # Increment challenge_id even if not found to avoid infinite loop
+            pass # Stop on error for better control
 
     if verbosity_level >= 1: # Verbose level 1 for normal output
         print(f"\nChallenge Markdown files saved in '{ctf_output_dir}' directory.")
