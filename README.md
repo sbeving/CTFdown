@@ -48,21 +48,22 @@ This tool is designed to help CTF teams:
 While installation isn't strictly necessary to run the script, you can clone the repository from GitHub if you plan to contribute or track changes.
 
 ```bash
-git clone [YOUR_GITHUB_REPOSITORY_URL]
-cd CTFd-Challenge-Downloader # Or your repository folder name
+git clone https://github.com/0xsbeve/CTFdown
+cd CTFdown 
+pip3 install -r requirements.txt
 ```
 
 ### Getting Your Session Cookie
 
 The script requires a session cookie to authenticate with the CTFd platform and access challenge data. Here's how to obtain it from your browser:
 
-1.  **Log in to the CTFd platform** in your web browser (e.g., `https://dh.securinets.tn`).
+1.  **Log in to the CTFd platform** in your web browser.
 2.  **Open your browser's Developer Tools** (usually by pressing `F12`).
 3.  Go to the **"Network"** tab.
 4.  **Refresh the page** (`F5`) to capture network requests.
 5.  Select **any request** made to the CTFd platform's domain (e.g., a request to `/api/v1/challenges`).
 6.  In the "Request Headers" section of the selected request, look for the **`Cookie`** header.
-7.  **Copy the value of the `session` cookie.** It will look something like: `session=long_alphanumeric_string.more_alphanumeric_string` (only copy the part after `session=`).
+7.  **Copy the value of the `session` cookie.** It will look something like: `session=long_alphanumeric_string` (only copy the part after `session=`).
 
 ### Running the Script
 
@@ -71,7 +72,7 @@ Open your terminal, navigate to the directory where you saved `app.py`, and run 
 **Basic Usage (Minimum Required Arguments):**
 
 ```bash
-python app.py -S YOUR_SESSION_COOKIE -D ctf.example.com
+python app.py -S "YOUR_SESSION_COOKIE" -D "ctf.example.com"
 ```
 
 *   **`-S YOUR_SESSION_COOKIE`** or **`--session_cookie YOUR_SESSION_COOKIE`**: **Required**. Replace `YOUR_SESSION_COOKIE` with the session cookie you copied from your browser.
@@ -123,13 +124,9 @@ output/
     └── ...
 ```
 
-## License
 
-[Specify your License here, e.g., MIT License]
 
-## Contributing
 
-[Optional: Add information about how others can contribute to the project, e.g., pull requests, bug reports, feature requests]
 
 ## Disclaimer
 
@@ -137,4 +134,3 @@ This script is intended for educational purposes and for archiving CTF challenge
 
 ---
 
-**This `README.md` provides a good starting point for your GitHub project.** You can customize it further with your specific project details, contribution guidelines, license information, and any other relevant information you want to include. Good luck with your project!
