@@ -150,9 +150,10 @@ def create_markdown_file(challenge_data, output_dir, domain, session_cookie, ver
 # add argument parser
 parser = argparse.ArgumentParser(description="Download challenges from a CTFd platform and create Markdown files.") # More descriptive description
 parser.add_argument("-S", "--session_cookie", required=True, help="Session cookie from the browser. Required.") # Make session_cookie required and add help
-parser.add_argument("-D", "--domain", required=True, help="Domain of the CTF platform (example: dh.securinets.tn)") # Add default and help for domain
+parser.add_argument("-D", "--domain", required=True, help="Domain of the CTFd platform (example: dh.securinets.tn)") # Add default and help for domain
 parser.add_argument("-O", "--output", default="output", help="Parent output directory for CTF challenge folders (default: output)") # Changed default output to "output" and updated help
 parser.add_argument("--start_id", type=int, default=1, help="Starting challenge ID (default: 1)") # Add start_id argument with default and help
+parser.add_argument("--stop_id", type=int, help="Stopping challenge ID (optional, script will stop at this ID)") # Add stop_id argument
 parser.add_argument("--no-download", action="store_true", help="Disable file downloading") # Add --no-download flag
 parser.add_argument("-v", "--verbosity", type=int, default=1, choices=[0, 1, 2], help="Verbosity level (0: quiet, 1: normal, 2: verbose, default: 1)") # Add verbosity argument
 
@@ -163,6 +164,7 @@ if __name__ == "__main__":
     domain = args.domain # Get domain from arguments
     output_parent_directory = args.output # Get parent output directory from arguments, renamed to be more clear
     start_challenge_id = args.start_id # Get start_id from arguments
+    stop_challenge_id = args.stop_id # Get stop_id from arguments
     enable_download = not args.no_download # Determine if download is enabled
     verbosity_level = args.verbosity # Get verbosity level from arguments
 
@@ -172,6 +174,11 @@ if __name__ == "__main__":
 
     challenge_id = start_challenge_id
     while True:
+        if stop_challenge_id and challenge_id > stop_challenge_id: # Check stop_id condition
+            if verbosity_level >= 1:
+                print(f"Stopping challenge download at challenge ID {stop_challenge_id} as requested.")
+            break
+
         if verbosity_level >= 1: # Verbose level 1 for normal output
             print(f"Fetching challenge {challenge_id} from {domain}...") # More informative fetching message
         challenge_json = get_challenge_data(challenge_id, session_cookie, domain, verbosity_level) # Pass verbosity level
@@ -181,7 +188,7 @@ if __name__ == "__main__":
         else:
             if verbosity_level >= 1: # Verbose level 1 for normal output
                 print(f"Challenge {challenge_id} not found or error encountered on {domain}. Stopping.") # More informative error message
-                challenge_id += 1 # Increment challenge_id even if not found to avoid infinite loop
+                challenge_id += 1 # Increment challenge_id even if error occurs to avoid infinite loop
             pass # Stop on error for better control
 
     if verbosity_level >= 1: # Verbose level 1 for normal output
