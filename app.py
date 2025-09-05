@@ -1,40 +1,101 @@
 import requests
 import os
-import re  # Import the re module
+import re
 import urllib.parse # Import urllib.parse for URL joining
 import argparse
 import json # Import json for potential JSONDecodeError handling
 
-def get_challenge_data(challenge_id, session_cookie, domain, verbosity):
+def get_all_challenge_ids(session_cookie, domain, verbosity, csrf_token=None):
+    """Fetches all available challenge IDs from the CTF platform."""
+    url = f"https://{domain}/api/v1/challenges"
+    headers = {
+        "Cookie": f"session={session_cookie}",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
+        "Content-Type": "application/json",
+        "Priority": "u=1, i",
+        "Referer": f"https://{domain}/challenges",
+        "Sec-Ch-UA": '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
+        "Sec-Ch-UA-Mobile": "?0",
+        "Sec-Ch-UA-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin"
+    }
+    
+    # Add CSRF token if provided
+    if csrf_token:
+        headers["csrf-token"] = csrf_token
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        if verbosity >= 2:
+            print(f"Verbose: Response status code for challenge list: {response.status_code}")
+        
+        try:
+            data = response.json()
+            if data.get('success') and 'data' in data:
+                challenge_ids = [challenge['id'] for challenge in data['data'] if challenge.get('type') != 'hidden']
+                if verbosity >= 1:
+                    print(f"Found {len(challenge_ids)} available challenges: {sorted(challenge_ids)}")
+                return sorted(challenge_ids)
+            else:
+                if verbosity >= 1:
+                    print("Error: API response indicates failure or missing data.")
+                return []
+        except json.JSONDecodeError:
+            if verbosity >= 1:
+                print("Error: Could not decode JSON response for challenge list.")
+                if verbosity >= 2:
+                    print(f"Response content type: {response.headers.get('content-type', 'unknown')}")
+                    print(f"Raw response content (first 1000 chars):\n{response.text[:1000]}")
+            return []
+
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTP Error fetching challenge list: {e}")
+        return []
+    except requests.exceptions.RequestException as e:
+        print(f"Request Error fetching challenge list: {e}")
+        return []
+
+def get_challenge_data(challenge_id, session_cookie, domain, verbosity, csrf_token=None):
     """Fetches challenge data from the API."""
     url = f"https://{domain}/api/v1/challenges/{challenge_id}"
     headers = {
         "Cookie": f"session={session_cookie}",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
         "Accept": "application/json",
-        "Accept-Encoding": "gzip, deflate, br, zstd",
-        "Accept-Language": "en-US,en;q=0.9,ar;q=0.8,fr;q=0.7",
-        "Cache-Control": "max-age=0",
-        "DNT": "1",
-        "Priority": "u=0, i",
-        "Sec-Ch-UA": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+        "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
+        "Content-Type": "application/json",
+        "Priority": "u=1, i",
+        "Referer": f"https://{domain}/challenges",
+        "Sec-Ch-UA": '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
         "Sec-Ch-UA-Mobile": "?0",
         "Sec-Ch-UA-Platform": '"Windows"',
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1"
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin"
     }
+    
+    # Add CSRF token if provided
+    if csrf_token:
+        headers["csrf-token"] = csrf_token
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
         if verbosity >= 2: # Verbose level 2 for detailed output
             print(f"Verbose: Response status code for challenge {challenge_id}: {response.status_code}")
         try:
             return response.json() # Try to parse as JSON
         except json.JSONDecodeError: # Catch JSON parsing errors
-            print(f"Error: Could not decode JSON response for challenge {challenge_id}. Raw response content:\n{response.text}")
+            if verbosity >= 1:
+                print(f"Error: Could not decode JSON response for challenge {challenge_id}.")
+                if verbosity >= 2:
+                    print(f"Response content type: {response.headers.get('content-type', 'unknown')}")
+                    print(f"Response status: {response.status_code}")
+                    print(f"Raw response content (first 1000 chars):\n{response.text[:1000]}")
             return None # Return None if JSON parsing fails
 
     except requests.exceptions.HTTPError as e:
@@ -152,44 +213,96 @@ parser = argparse.ArgumentParser(description="Download challenges from a CTFd pl
 parser.add_argument("-S", "--session_cookie", required=True, help="Session cookie from the browser. Required.") # Make session_cookie required and add help
 parser.add_argument("-D", "--domain", required=True, help="Domain of the CTFd platform (example: dh.securinets.tn)") # Add default and help for domain
 parser.add_argument("-O", "--output", default="output", help="Parent output directory for CTF challenge folders (default: output)") # Changed default output to "output" and updated help
-parser.add_argument("--start_id", type=int, default=1, help="Starting challenge ID (default: 1)") # Add start_id argument with default and help
-parser.add_argument("--stop_id", type=int, help="Stopping challenge ID (optional, script will stop at this ID)") # Add stop_id argument
+parser.add_argument("--auto-fetch", action="store_true", help="Automatically fetch all available challenge IDs from the API (recommended)")
+parser.add_argument("--start_id", type=int, help="Starting challenge ID (only used if --auto-fetch is not specified)") # Make optional
+parser.add_argument("--stop_id", type=int, help="Stopping challenge ID (only used if --auto-fetch is not specified)") # Add stop_id argument
 parser.add_argument("--no-download", action="store_true", help="Disable file downloading") # Add --no-download flag
+parser.add_argument("--max-failures", type=int, default=10, help="Maximum consecutive failures before stopping (default: 10, only used if --auto-fetch is not specified)")
+parser.add_argument("--csrf-token", help="CSRF token for API requests (optional)")
 parser.add_argument("-v", "--verbosity", type=int, default=1, choices=[0, 1, 2], help="Verbosity level (0: quiet, 1: normal, 2: verbose, default: 1)") # Add verbosity argument
 
 args = parser.parse_args()
 
 if __name__ == "__main__":
-    session_cookie = args.session_cookie # Get session cookie from arguments
-    domain = args.domain # Get domain from arguments
-    output_parent_directory = args.output # Get parent output directory from arguments, renamed to be more clear
-    start_challenge_id = args.start_id # Get start_id from arguments
-    stop_challenge_id = args.stop_id # Get stop_id from arguments
-    enable_download = not args.no_download # Determine if download is enabled
-    verbosity_level = args.verbosity # Get verbosity level from arguments
+    session_cookie = args.session_cookie
+    domain = args.domain
+    output_parent_directory = args.output
+    auto_fetch = args.auto_fetch
+    start_challenge_id = args.start_id
+    stop_challenge_id = args.stop_id
+    enable_download = not args.no_download
+    max_consecutive_failures = args.max_failures
+    csrf_token = args.csrf_token
+    verbosity_level = args.verbosity
 
-    ctf_output_dir = os.path.join(output_parent_directory, domain.replace(".","_")) # Create CTF-specific output folder inside "output"
+    ctf_output_dir = os.path.join(output_parent_directory, domain.replace(".","_"))
     if not os.path.exists(ctf_output_dir):
         os.makedirs(ctf_output_dir)
 
-    challenge_id = start_challenge_id
-    while True:
-        if stop_challenge_id and challenge_id > stop_challenge_id: # Check stop_id condition
+    if auto_fetch:
+        # Auto-fetch mode: get all challenge IDs from API
+        if verbosity_level >= 1:
+            print(f"Auto-fetching challenge IDs from {domain}...")
+        
+        challenge_ids = get_all_challenge_ids(session_cookie, domain, verbosity_level, csrf_token)
+        
+        if not challenge_ids:
+            print("Error: Could not fetch challenge IDs. Please check your session cookie and domain.")
+            exit(1)
+        
+        # Process each challenge
+        for challenge_id in challenge_ids:
             if verbosity_level >= 1:
-                print(f"Stopping challenge download at challenge ID {stop_challenge_id} as requested.")
-            break
+                print(f"Processing challenge {challenge_id}...")
+            
+            challenge_json = get_challenge_data(challenge_id, session_cookie, domain, verbosity_level, csrf_token)
+            if challenge_json and challenge_json.get('success'):
+                create_markdown_file(challenge_json, ctf_output_dir, domain, session_cookie, verbosity_level)
+            else:
+                if verbosity_level >= 1:
+                    print(f"Skipping challenge {challenge_id} due to error.")
+    
+    else:
+        # Manual mode: iterate through ID range
+        if start_challenge_id is None:
+            start_challenge_id = 1
+            
+        if verbosity_level >= 1:
+            range_info = f"from {start_challenge_id}"
+            if stop_challenge_id:
+                range_info += f" to {stop_challenge_id}"
+            else:
+                range_info += " onwards"
+            print(f"Manual mode: fetching challenges {range_info}...")
+        
+        challenge_id = start_challenge_id
+        consecutive_failures = 0
+        
+        while True:
+            if stop_challenge_id and challenge_id > stop_challenge_id:
+                if verbosity_level >= 1:
+                    print(f"Stopping challenge download at challenge ID {stop_challenge_id} as requested.")
+                break
 
-        if verbosity_level >= 1: # Verbose level 1 for normal output
-            print(f"Fetching challenge {challenge_id} from {domain}...") # More informative fetching message
-        challenge_json = get_challenge_data(challenge_id, session_cookie, domain, verbosity_level) # Pass verbosity level
-        if challenge_json and challenge_json['success']:
-            create_markdown_file(challenge_json, ctf_output_dir, domain, session_cookie, verbosity_level) # Pass verbosity level and ctf_output_dir
-            challenge_id += 1
-        else:
-            if verbosity_level >= 1: # Verbose level 1 for normal output
-                print(f"Challenge {challenge_id} not found or error encountered on {domain}. Stopping.") # More informative error message
-                challenge_id += 1 # Increment challenge_id even if error occurs to avoid infinite loop
-            pass # Stop on error for better control
+            if verbosity_level >= 1:
+                print(f"Fetching challenge {challenge_id} from {domain}...")
+            
+            challenge_json = get_challenge_data(challenge_id, session_cookie, domain, verbosity_level, csrf_token)
+            if challenge_json and challenge_json.get('success'):
+                create_markdown_file(challenge_json, ctf_output_dir, domain, session_cookie, verbosity_level)
+                consecutive_failures = 0  # Reset failure counter on success
+            else:
+                consecutive_failures += 1
+                if verbosity_level >= 1:
+                    print(f"Challenge {challenge_id} not found or error encountered on {domain}. Skipping.")
+                
+                # Stop if too many consecutive failures
+                if consecutive_failures >= max_consecutive_failures:
+                    if verbosity_level >= 1:
+                        print(f"Stopping after {max_consecutive_failures} consecutive failures. No more challenges found.")
+                    break
+            
+            challenge_id += 1  # Always increment to continue to next challenge
 
-    if verbosity_level >= 1: # Verbose level 1 for normal output
+    if verbosity_level >= 1:
         print(f"\nChallenge Markdown files saved in '{ctf_output_dir}' directory.")
