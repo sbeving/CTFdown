@@ -146,6 +146,10 @@ def create_markdown_file(challenge_data, output_dir, domain, session_cookie, ver
     description_md = re.sub(r'<[^>]*>', '', description_md) # Remove HTML tags
     markdown_file_content += f"## Description\n{description_md}\n\n"
 
+    # Add connection info if available
+    if challenge_data['data'].get('connection_info'):
+        markdown_file_content += f"## Connection\n```\n{challenge_data['data']['connection_info']}\n```\n\n"
+
     if challenge_data['data']['files']:
         markdown_file_content += "## Files\n"
         local_files_links = [] # List to store local file links for readme.md
@@ -213,11 +217,10 @@ parser = argparse.ArgumentParser(description="Download challenges from a CTFd pl
 parser.add_argument("-S", "--session_cookie", required=True, help="Session cookie from the browser. Required.") # Make session_cookie required and add help
 parser.add_argument("-D", "--domain", required=True, help="Domain of the CTFd platform (example: dh.securinets.tn)") # Add default and help for domain
 parser.add_argument("-O", "--output", default="output", help="Parent output directory for CTF challenge folders (default: output)") # Changed default output to "output" and updated help
-parser.add_argument("--auto-fetch", action="store_true", help="Automatically fetch all available challenge IDs from the API (recommended)")
-parser.add_argument("--start_id", type=int, help="Starting challenge ID (only used if --auto-fetch is not specified)") # Make optional
-parser.add_argument("--stop_id", type=int, help="Stopping challenge ID (only used if --auto-fetch is not specified)") # Add stop_id argument
+parser.add_argument("--start_id", type=int, help="Starting challenge ID (enables manual mode instead of auto-fetch)") # Make optional
+parser.add_argument("--stop_id", type=int, help="Stopping challenge ID (only used with --start_id in manual mode)") # Add stop_id argument
 parser.add_argument("--no-download", action="store_true", help="Disable file downloading") # Add --no-download flag
-parser.add_argument("--max-failures", type=int, default=10, help="Maximum consecutive failures before stopping (default: 10, only used if --auto-fetch is not specified)")
+parser.add_argument("--max-failures", type=int, default=10, help="Maximum consecutive failures before stopping (default: 10, only used in manual mode)")
 parser.add_argument("--csrf-token", help="CSRF token for API requests (optional)")
 parser.add_argument("-v", "--verbosity", type=int, default=1, choices=[0, 1, 2], help="Verbosity level (0: quiet, 1: normal, 2: verbose, default: 1)") # Add verbosity argument
 
@@ -227,7 +230,6 @@ if __name__ == "__main__":
     session_cookie = args.session_cookie
     domain = args.domain
     output_parent_directory = args.output
-    auto_fetch = args.auto_fetch
     start_challenge_id = args.start_id
     stop_challenge_id = args.stop_id
     enable_download = not args.no_download
@@ -239,34 +241,9 @@ if __name__ == "__main__":
     if not os.path.exists(ctf_output_dir):
         os.makedirs(ctf_output_dir)
 
-    if auto_fetch:
-        # Auto-fetch mode: get all challenge IDs from API
-        if verbosity_level >= 1:
-            print(f"Auto-fetching challenge IDs from {domain}...")
-        
-        challenge_ids = get_all_challenge_ids(session_cookie, domain, verbosity_level, csrf_token)
-        
-        if not challenge_ids:
-            print("Error: Could not fetch challenge IDs. Please check your session cookie and domain.")
-            exit(1)
-        
-        # Process each challenge
-        for challenge_id in challenge_ids:
-            if verbosity_level >= 1:
-                print(f"Processing challenge {challenge_id}...")
-            
-            challenge_json = get_challenge_data(challenge_id, session_cookie, domain, verbosity_level, csrf_token)
-            if challenge_json and challenge_json.get('success'):
-                create_markdown_file(challenge_json, ctf_output_dir, domain, session_cookie, verbosity_level)
-            else:
-                if verbosity_level >= 1:
-                    print(f"Skipping challenge {challenge_id} due to error.")
-    
-    else:
+    # Determine mode: auto-fetch (default) or manual (when start_id is specified)
+    if start_challenge_id is not None:
         # Manual mode: iterate through ID range
-        if start_challenge_id is None:
-            start_challenge_id = 1
-            
         if verbosity_level >= 1:
             range_info = f"from {start_challenge_id}"
             if stop_challenge_id:
@@ -303,6 +280,29 @@ if __name__ == "__main__":
                     break
             
             challenge_id += 1  # Always increment to continue to next challenge
+    
+    else:
+        # Auto-fetch mode (default): get all challenge IDs from API
+        if verbosity_level >= 1:
+            print(f"Auto-fetching challenge IDs from {domain}...")
+        
+        challenge_ids = get_all_challenge_ids(session_cookie, domain, verbosity_level, csrf_token)
+        
+        if not challenge_ids:
+            print("Error: Could not fetch challenge IDs. Please check your session cookie and domain.")
+            exit(1)
+        
+        # Process each challenge
+        for challenge_id in challenge_ids:
+            if verbosity_level >= 1:
+                print(f"Processing challenge {challenge_id}...")
+            
+            challenge_json = get_challenge_data(challenge_id, session_cookie, domain, verbosity_level, csrf_token)
+            if challenge_json and challenge_json.get('success'):
+                create_markdown_file(challenge_json, ctf_output_dir, domain, session_cookie, verbosity_level)
+            else:
+                if verbosity_level >= 1:
+                    print(f"Skipping challenge {challenge_id} due to error.")
 
     if verbosity_level >= 1:
         print(f"\nChallenge Markdown files saved in '{ctf_output_dir}' directory.")
